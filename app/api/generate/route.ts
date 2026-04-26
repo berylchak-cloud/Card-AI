@@ -2,11 +2,11 @@ import { NextResponse } from 'next/server';
 
 export async function POST(req: Request) {
   try {
-    // 1. Safety Check: Ensure the request is actually sending JSON
+    // 1. Safety Check: Stop the crash if visited via browser URL bar
     const contentType = req.headers.get("content-type");
     if (!contentType || !contentType.includes("application/json")) {
       return NextResponse.json(
-        { error: "Invalid Request: Please send a POST request with JSON body." },
+        { error: "Invalid Request: This is an API endpoint. Please use the app interface to generate cards." },
         { status: 400 }
       );
     }
@@ -16,14 +16,14 @@ export async function POST(req: Request) {
 
     // 2. Validate input
     if (!prompt) {
-      return NextResponse.json({ error: "Missing prompt in request body" }, { status: 400 });
+      return NextResponse.json({ error: "Missing prompt" }, { status: 400 });
     }
 
     // 3. Check for Hugging Face Token
     if (!process.env.HF_TOKEN) {
-      console.error("HF_TOKEN is missing in Vercel Environment Variables");
+      console.error("HF_TOKEN missing in Vercel Environment Variables");
       return NextResponse.json(
-        { error: "Server configuration error: HF_TOKEN not found." },
+        { error: "Server configuration error: API Token not found." },
         { status: 500 }
       );
     }
@@ -43,23 +43,23 @@ export async function POST(req: Request) {
       }
     );
 
-    // 5. Handle Provider Errors (Prevents the JSON parsing crash)
+    // 5. Handle API errors gracefully
     if (!response.ok) {
       const errorText = await response.text();
       return NextResponse.json(
-        { error: `Hugging Face API Error: ${errorText}` },
+        { error: `AI Provider Error: ${errorText}` },
         { status: response.status }
       );
     }
 
-    // 6. Success: Return the image
+    // 6. Return the image
     const blob = await response.blob();
     return new NextResponse(blob, {
       headers: { 'Content-Type': 'image/jpeg' },
     });
 
   } catch (error: any) {
-    console.error("Worker Error:", error);
+    console.error("Internal Error:", error);
     return NextResponse.json(
       { error: "Internal Server Error", details: error.message },
       { status: 500 }
