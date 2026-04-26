@@ -2,59 +2,66 @@ import { NextResponse } from 'next/server';
 
 export async function POST(req: Request) {
   try {
-    const { prompt, style } = await req.json();
-
-    // 1. Check if HF_TOKEN exists
-    if (!process.env.HF_TOKEN) {
-      console.error("Missing HF_TOKEN environment variable");
+    // 1. Safety Check: Ensure the request is actually sending JSON
+    const contentType = req.headers.get("content-type");
+    if (!contentType || !contentType.includes("application/json")) {
       return NextResponse.json(
-        { error: 'Server configuration error: Missing API Token' },
+        { error: "Invalid Request: Please send a POST request with JSON body." },
+        { status: 400 }
+      );
+    }
+
+    const body = await req.json();
+    const { prompt, style } = body;
+
+    // 2. Validate input
+    if (!prompt) {
+      return NextResponse.json({ error: "Missing prompt in request body" }, { status: 400 });
+    }
+
+    // 3. Check for Hugging Face Token
+    if (!process.env.HF_TOKEN) {
+      console.error("HF_TOKEN is missing in Vercel Environment Variables");
+      return NextResponse.json(
+        { error: "Server configuration error: HF_TOKEN not found." },
         { status: 500 }
       );
     }
 
-    // 2. Build the AI Prompt
-    const fullPrompt = `Style: ${style}. ${prompt}`;
-    console.log("Sending request to Hugging Face...");
+    const fullPrompt = `Style: ${style || 'general'}. ${prompt}`;
 
-    // 3. Fetch from Hugging Face
+    // 4. Call Hugging Face API
     const response = await fetch(
-      "https://api-inference.huggingface.co/models/runwayml/stable-diffusion-v1-5", // Example model, ensure this is your desired model URL
+      "https://api-inference.huggingface.co/models/runwayml/stable-diffusion-v1-5",
       {
         headers: {
           Authorization: `Bearer ${process.env.HF_TOKEN}`,
           "Content-Type": "application/json",
         },
         method: "POST",
-        body: JSON.stringify({
-          inputs: fullPrompt,
-        }),
+        body: JSON.stringify({ inputs: fullPrompt }),
       }
     );
 
-    // 4. Handle Hugging Face Errors (Fixes the "minus sign" crash)
+    // 5. Handle Provider Errors (Prevents the JSON parsing crash)
     if (!response.ok) {
       const errorText = await response.text();
-      console.error("Hugging Face API Error:", errorText);
-      
       return NextResponse.json(
-        { error: `AI Provider Error: ${errorText}` },
+        { error: `Hugging Face API Error: ${errorText}` },
         { status: response.status }
       );
     }
 
-    // 5. Return the Image Blob
+    // 6. Success: Return the image
     const blob = await response.blob();
     return new NextResponse(blob, {
-      headers: {
-        'Content-Type': 'image/jpeg',
-      },
+      headers: { 'Content-Type': 'image/jpeg' },
     });
 
   } catch (error: any) {
-    console.error("Internal Server Error:", error);
+    console.error("Worker Error:", error);
     return NextResponse.json(
-      { error: 'Internal Server Error', details: error.message },
+      { error: "Internal Server Error", details: error.message },
       { status: 500 }
     );
   }
