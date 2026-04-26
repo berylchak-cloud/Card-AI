@@ -2,20 +2,24 @@ import { NextResponse } from 'next/server';
 
 export async function POST(req: Request) {
   try {
-    const { image, prompt, style } = await req.json();
+    const { prompt, style } = await req.json();
 
+    // 1. Check if HF_TOKEN exists
     if (!process.env.HF_TOKEN) {
-      console.error("錯誤: 找不到 HF_TOKEN 環境變量");
-      return NextResponse.json({ error: 'HF_TOKEN 未設定' }, { status: 500 });
+      console.error("Missing HF_TOKEN environment variable");
+      return NextResponse.json(
+        { error: 'Server configuration error: Missing API Token' },
+        { status: 500 }
+      );
     }
 
-    // 構建 AI 提示詞
-    const fullPrompt = `Style: ${style}. ${prompt}. High quality, detailed greeting card.`;
+    // 2. Build the AI Prompt
+    const fullPrompt = `Style: ${style}. ${prompt}`;
+    console.log("Sending request to Hugging Face...");
 
-    console.log("正在發送請求至 Hugging Face...");
-
+    // 3. Fetch from Hugging Face
     const response = await fetch(
-      "https://api-inference.huggingface.co/models/black-forest-labs/FLUX.1-schnell",
+      "https://api-inference.huggingface.co/models/runwayml/stable-diffusion-v1-5", // Example model, ensure this is your desired model URL
       {
         headers: {
           Authorization: `Bearer ${process.env.HF_TOKEN}`,
@@ -28,31 +32,30 @@ export async function POST(req: Request) {
       }
     );
 
-    // 如果 Hugging Face 回傳錯誤
+    // 4. Handle Hugging Face Errors (Fixes the "minus sign" crash)
     if (!response.ok) {
       const errorText = await response.text();
-      console.error("Hugging Face API 報錯:", errorText);
-      return NextResponse.json({ error: 'AI 引擎暫時忙碌，請稍後再試' }, { status: response.status });
+      console.error("Hugging Face API Error:", errorText);
+      
+      return NextResponse.json(
+        { error: `AI Provider Error: ${errorText}` },
+        { status: response.status }
+      );
     }
 
-    const responseData = await response.arrayBuffer();
-    
-    // 在日誌紀錄生成成功，這能幫助你檢查是否有抓到數據
-    console.log("圖片生成成功, 數據長度:", responseData.byteLength);
-
-    // 回傳圖片，並強制設定 Content-Type
-    return new NextResponse(responseData, {
+    // 5. Return the Image Blob
+    const blob = await response.blob();
+    return new NextResponse(blob, {
       headers: {
-        'Content-Type': 'image/png',
-        'Cache-Control': 'no-store, max-age=0',
+        'Content-Type': 'image/jpeg',
       },
     });
 
   } catch (error: any) {
-    console.error("API 內部錯誤:", error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error("Internal Server Error:", error);
+    return NextResponse.json(
+      { error: 'Internal Server Error', details: error.message },
+      { status: 500 }
+    );
   }
 }
-
-// 這是為了防止 Vercel 快取舊圖片
-export const dynamic = 'force-dynamic';
