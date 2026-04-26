@@ -8,51 +8,93 @@ export default function BlessingCardApp() {
   const handleGenerate = async (e: any) => {
     e.preventDefault();
     setLoading(true);
+    
+    // 1. 從表單獲取用戶輸入的內容
     const formData = new FormData(e.target);
+    const prompt = formData.get('prompt');
+    const style = formData.get('style') || 'watercolor'; // 預設風格
+
     try {
-      const res = await fetch('/api/generate', { method: 'POST', body: formData });
+      // 2. 向後端發送 POST 請求
+      const res = await fetch('/api/generate', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ 
+          prompt: prompt, 
+          style: style 
+        }),
+      });
+
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.error || '生成失敗');
+      }
+
+      // 3. 接收圖片 Blob 並轉化為網址顯示
       const blob = await res.blob();
       setResult(URL.createObjectURL(blob));
-    } catch (err) {
-      alert("生成失敗，請檢查 API 設定");
+    } catch (err: any) {
+      console.error(err);
+      alert(`生成失敗: ${err.message}`);
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-[#FFF9F2] text-[#3E2723] p-6">
-      <header className="max-w-md mx-auto py-10 text-center">
-        <h1 className="text-3xl font-bold text-[#8D6E63]">BlessingCardAI</h1>
-        <p className="text-sm opacity-70 mt-2">創造專屬暖心賀卡</p>
+    <div className="min-h-screen bg-[#FFF9F2] text-[#4A4A4A] font-sans">
+      <header className="max-w-md mx-auto py-10 px-6 text-center">
+        <h1 className="text-3xl font-bold text-[#D4A373]">AI 祝福卡片生成器</h1>
+        <p className="text-sm opacity-70 mt-2">創造專屬於你的精美卡片</p>
       </header>
-      <main className="max-w-md mx-auto bg-white/60 backdrop-blur-md rounded-3xl p-6 shadow-sm ring-1 ring-[#8D6E63]/10">
+
+      <main className="max-w-md mx-auto px-6 pb-20">
         <form onSubmit={handleGenerate} className="space-y-6">
           <div>
-            <label className="block text-sm font-medium mb-2">1. 上傳相片</label>
-            <input type="file" name="image" className="w-full text-sm" />
+            <label className="block text-sm font-medium mb-2">描述你想生成的畫面</label>
+            <textarea
+              name="prompt"
+              required
+              className="w-full p-4 rounded-2xl border-2 border-[#E9EDC9] focus:border-[#D4A373] outline-none h-32 resize-none transition-all"
+              placeholder="例如：一隻戴著聖誕帽的小熊在雪地裡..."
+            ></textarea>
           </div>
+
           <div>
-            <label className="block text-sm font-medium mb-2">2. 選擇風格</label>
-            <select name="style" className="w-full p-3 rounded-xl bg-white border-none ring-1 ring-[#8D6E63]/20">
-              <option value="Pixar 3D 角色變身, Keep the face identical">Pixar 3D (角色變身)</option>
-              <option value="吉卜力動漫風格 角色變身, Keep the face identical">吉卜力 (角色變身)</option>
-              <option value="夢幻水彩藝術插畫">夢幻水彩 (藝術插畫)</option>
-              <option value="復古油畫藝術插畫">復古油畫 (藝術插畫)</option>
+            <label className="block text-sm font-medium mb-2">選擇藝術風格</label>
+            <select 
+              name="style"
+              className="w-full p-4 rounded-2xl border-2 border-[#E9EDC9] focus:border-[#D4A373] outline-none bg-white"
+            >
+              <option value="watercolor">清新水彩 (Watercolor)</option>
+              <option value="oil painting">古典油畫 (Oil Painting)</option>
+              <option value="cartoon">可愛卡通 (Cartoon)</option>
+              <option value="cyberpunk">賽博龐克 (Cyberpunk)</option>
             </select>
           </div>
-          <div>
-            <label className="block text-sm font-medium mb-2">3. 祝福語</label>
-            <textarea name="blessing" placeholder="例如：生日快樂！" className="w-full p-3 rounded-xl ring-1 ring-[#8D6E63]/20 border-none" />
-          </div>
-          <button disabled={loading} className="w-full py-4 bg-[#8D6E63] text-white rounded-2xl font-bold active:scale-95 transition-transform">
-            {loading ? "AI 正在繪製中..." : "立即生成賀卡"}
+
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full py-4 bg-[#D4A373] text-white rounded-2xl font-bold text-lg hover:bg-[#BC8A5F] transition-colors disabled:opacity-50"
+          >
+            {loading ? "AI 正在繪製中..." : "開始生成卡片"}
           </button>
         </form>
+
         {result && (
-          <div className="mt-8 border-t border-[#8D6E63]/10 pt-8 text-center">
-            <img src={result} className="w-full rounded-2xl shadow-lg mb-4" />
-            <a href={result} download="card.png" className="inline-block px-8 py-3 bg-white border border-[#8D6E63] text-[#8D6E63] rounded-xl font-medium">下載圖片</a>
+          <div className="mt-10 p-4 bg-white rounded-3xl shadow-xl animate-in fade-in zoom-in duration-500">
+            <h2 className="text-center font-medium mb-4 text-[#D4A373]">您的專屬卡片已完成：</h2>
+            <img src={result} alt="AI Generated" className="w-full rounded-2xl shadow-inner" />
+            <a 
+              href={result} 
+              download="card.jpg"
+              className="block text-center mt-4 text-sm text-[#D4A373] underline"
+            >
+              下載圖片
+            </a>
           </div>
         )}
       </main>
